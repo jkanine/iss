@@ -34,6 +34,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Fetch all issues
 $issues = $pdo->query("SELECT * FROM iss_issues ORDER BY open_date DESC")->fetchAll(PDO::FETCH_ASSOC);
 Database::disconnect();
+
+// Fetch comments for a specific issue
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'fetch_comments') {
+    $issue_id = $_POST['iss_id'];
+    $stmt = $pdo->prepare("SELECT c.*, p.fname, p.lname FROM iss_comments c 
+                           JOIN iss_persons p ON c.per_id = p.id 
+                           WHERE c.iss_id = ? ORDER BY c.posted_date DESC");
+    $stmt->execute([$issue_id]);
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    exit;
+}
+
+// Handle Adding a Comment
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_comment') {
+    $stmt = $pdo->prepare("INSERT INTO iss_comments (per_id, iss_id, short_comment, long_comment, posted_date) 
+                           VALUES (?, ?, ?, ?, ?)");
+    $stmt->execute([$_POST['per_id'], $_POST['iss_id'], $_POST['short_comment'], $_POST['long_comment'], date('Y-m-d')]);
+    echo "success";
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -72,7 +92,7 @@ Database::disconnect();
                         <td>
                             <button class="btn btn-info btn-sm read-btn" data-issue='<?= json_encode($issue); ?>'>Read</button>
                             <button class="btn btn-warning btn-sm edit-btn">Edit</button>
-                            <button class="btn btn-danger btn-sm delete-btn">Delete</button>
+                            <button class="btn btn-danger btn-sm delete-btn" data-issue='<?= json_encode($issue); ?>'>Delete</button>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -116,16 +136,46 @@ Database::disconnect();
 
     <!-- Read Issue Modal -->
     <div class="modal fade" id="readIssueModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Issue Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Issue Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="readIssueContent"></div>
+
+                <!-- Add Comment Form -->
+                <div class="mt-3 p-3 bg-white rounded border shadow-sm">
+                    <h6 class="text-success">Add a Comment</h6>
+                    <form id="addCommentForm">
+                        <input type="hidden" name="action" value="add_comment">
+                        <input type="hidden" name="iss_id" id="commentIssueId">
+                        <input type="hidden" name="per_id" value="1"> <!-- Replace with logged-in user ID -->
+                        
+                        <div class="mb-3">
+                            <label class="fw-bold">Short Comment</label>
+                            <input type="text" class="form-control border-primary" name="short_comment" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="fw-bold">Long Comment</label>
+                            <textarea class="form-control border-primary" name="long_comment" rows="3" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">Post Comment</button>
+                    </form>
                 </div>
-                <div class="modal-body" id="readIssueContent"></div>
+
+                <!-- Comments Section -->
+                <h5 class="mt-4 text-primary">Comments</h5>
+                <div id="commentSection" class="p-3 rounded bg-light border" style="max-height: 300px; overflow-y: auto;">
+                    <p class="text-muted">No comments yet.</p>
+                </div>
             </div>
         </div>
     </div>
+</div>
+
+
 
         <!-- Edit Issue Modal -->
     <div class="modal fade" id="editIssueModal" tabindex="-1">
@@ -147,14 +197,14 @@ Database::disconnect();
                         <div class="mb-3"><label>Organization</label><input type="text" class="form-control" name="org" required></div>
                         <div class="mb-3"><label>Project</label><input type="text" class="form-control" name="project" required></div>
                         <div class="mb-3">
-    <label>Person</label>
-    <select class="form-control" name="per_id" required>
-        <option value="">Select Person</option>
-        <?php foreach ($people as $person): ?>
-            <option value="<?= $person['id']; ?>"><?= htmlspecialchars($person['full_name']); ?></option>
-        <?php endforeach; ?>
-    </select>
-</div>
+        <label>Person</label>
+        <select class="form-control" name="per_id" required>
+            <option value="">Select Person</option>
+            <?php foreach ($people as $person): ?>
+                <option value="<?= $person['id']; ?>"><?= htmlspecialchars($person['full_name']); ?></option>
+            <?php endforeach; ?>
+        </select>
+    </div>
                         <button type="submit" class="btn btn-primary">Save Changes</button>
                     </form>
                 </div>
@@ -163,24 +213,27 @@ Database::disconnect();
     </div>
 
         <!-- Delete Confirmation Modal -->
-    <div class="modal fade" id="deleteIssueModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Confirm Deletion</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Are you sure you want to delete this issue?</p>
-                    <input type="hidden" id="deleteIssueId">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+        <div class="modal fade" id="deleteIssueModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirm Deletion</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Are you sure you want to delete this issue?</p>
+                        <p><strong>ID:</strong> <span id="deleteIssueIdText"></span></p>
+                        <p><strong>Short Description:</strong> <span id="deleteIssueDescription"></span></p>
+                        <input type="hidden" id="deleteIssueId">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" id="confirmDelete">Delete</button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+
 
 
 
@@ -195,22 +248,60 @@ Database::disconnect();
             });
         });
 
-        // Read Issue
-        $(document).on("click", ".read-btn", function () {
-            let issue = $(this).data("issue");
-            $("#readIssueContent").html(`
-                <p><strong>ID:</strong> ${issue.id}</p>
-                <p><strong>Short Description:</strong> ${issue.short_description}</p>
-                <p><strong>Long Description:</strong> ${issue.long_description}</p>
-                <p><strong>Open Date:</strong> ${issue.open_date}</p>
-                <p><strong>Close Date:</strong> ${issue.close_date}</p>
-                <p><strong>Priority:</strong> ${issue.priority}</p>
-                <p><strong>Organization:</strong> ${issue.org}</p>
-                <p><strong>Project:</strong> ${issue.project}</p>
-                <p><strong>Person ID:</strong> ${issue.per_id}</p>
-            `);
-            $("#readIssueModal").modal("show");
+        $(document).ready(function () {
+    // Load Issue Details and Comments
+    $(document).on("click", ".read-btn", function () {
+        let issue = $(this).data("issue");
+
+        $("#readIssueContent").html(`
+            <p><strong>ID:</strong> ${issue.id}</p>
+            <p><strong>Short Description:</strong> ${issue.short_description}</p>
+            <p><strong>Long Description:</strong> ${issue.long_description}</p>
+            <p><strong>Open Date:</strong> ${issue.open_date}</p>
+            <p><strong>Close Date:</strong> ${issue.close_date}</p>
+            <p><strong>Priority:</strong> ${issue.priority}</p>
+            <p><strong>Organization:</strong> ${issue.org}</p>
+            <p><strong>Project:</strong> ${issue.project}</p>
+        `);
+
+        $("#commentIssueId").val(issue.id);
+        loadComments(issue.id);
+
+        $("#readIssueModal").modal("show");
+    });
+
+    // Fetch and Display Comments
+    function loadComments(issueId) {
+        $.post("issues_list.php", { action: "fetch_comments", iss_id: issueId }, function (response) {
+            let comments = JSON.parse(response);
+            let commentHTML = comments.length ? "" : "<p>No comments yet.</p>";
+
+            comments.forEach(comment => {
+                commentHTML += `
+                    <div class="border p-2 mb-2">
+                        <p><strong>${comment.fname} ${comment.lname}:</strong> ${comment.short_comment}</p>
+                        <p>${comment.long_comment}</p>
+                        <small class="text-muted">${comment.posted_date}</small>
+                    </div>
+                `;
+            });
+
+            $("#commentSection").html(commentHTML);
         });
+    }
+
+    // Handle Adding a Comment
+    $("#addCommentForm").submit(function (event) {
+        event.preventDefault();
+        $.post("issues_list.php", $(this).serialize(), function (response) {
+            if (response.trim() === "success") {
+                loadComments($("#commentIssueId").val());
+                $("#addCommentForm")[0].reset();
+            }
+        });
+    });
+});
+
 
         // Edit Issue
         $(document).on("click", ".edit-btn", function () {
@@ -239,14 +330,32 @@ Database::disconnect();
             });
         });
 
-        // Delete Issue
-        $(document).on("click", ".delete-btn", function () {
-            if (!confirm("Are you sure you want to delete this issue?")) return;
-            let issueId = $(this).closest("tr").data("id");
-            $.post("issues_list.php", { action: "delete", id: issueId }, function (response) {
-                if (response.trim() === "success") location.reload();
-            });
+        $(document).ready(function () {
+    // Open Delete Confirmation Modal
+    $(document).on("click", ".delete-btn", function () {
+        let issue = $(this).data("issue");
+        
+        // Populate modal with issue details
+        $("#deleteIssueId").val(issue.id);
+        $("#deleteIssueIdText").text(issue.id);
+        $("#deleteIssueDescription").text(issue.short_description);
+
+        // Show the modal
+        $("#deleteIssueModal").modal("show");
+    });
+
+    // Confirm Deletion
+    $("#confirmDelete").click(function () {
+        let issueId = $("#deleteIssueId").val();
+        
+        $.post("issues_list.php", { action: "delete", id: issueId }, function (response) {
+            if (response.trim() === "success") {
+                location.reload();
+            }
         });
+    });
+});
+
     });
 </script>
 </body>
