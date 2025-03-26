@@ -34,26 +34,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Fetch all issues
 $issues = $pdo->query("SELECT * FROM iss_issues ORDER BY open_date DESC")->fetchAll(PDO::FETCH_ASSOC);
 Database::disconnect();
-
-// Fetch comments for a specific issue
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'fetch_comments') {
-    $issue_id = $_POST['iss_id'];
-    $stmt = $pdo->prepare("SELECT c.*, p.fname, p.lname FROM iss_comments c 
-                           JOIN iss_persons p ON c.per_id = p.id 
-                           WHERE c.iss_id = ? ORDER BY c.posted_date DESC");
-    $stmt->execute([$issue_id]);
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
-    exit;
-}
-
-// Handle Adding a Comment
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_comment') {
-    $stmt = $pdo->prepare("INSERT INTO iss_comments (per_id, iss_id, short_comment, long_comment, posted_date) 
-                           VALUES (?, ?, ?, ?, ?)");
-    $stmt->execute([$_POST['per_id'], $_POST['iss_id'], $_POST['short_comment'], $_POST['long_comment'], date('Y-m-d')]);
-    echo "success";
-    exit;
-}
 ?>
 
 <!DOCTYPE html>
@@ -70,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <div class="container mt-5">
         <h1 class="mb-4">Issue List</h1>
         <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addIssueModal">+ Add Issue</button>
+        <a href="persons_list.php" class="btn btn-secondary mb-3">Go To Persons List</a>
         <table class="table table-bordered">
             <thead class="table-dark">
                 <tr>
@@ -144,32 +125,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
             <div class="modal-body">
                 <div id="readIssueContent"></div>
-
-                <!-- Add Comment Form -->
-                <div class="mt-3 p-3 bg-white rounded border shadow-sm">
-                    <h6 class="text-success">Add a Comment</h6>
-                    <form id="addCommentForm">
-                        <input type="hidden" name="action" value="add_comment">
-                        <input type="hidden" name="iss_id" id="commentIssueId">
-                        <input type="hidden" name="per_id" value="1"> <!-- Replace with logged-in user ID -->
-                        
-                        <div class="mb-3">
-                            <label class="fw-bold">Short Comment</label>
-                            <input type="text" class="form-control border-primary" name="short_comment" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="fw-bold">Long Comment</label>
-                            <textarea class="form-control border-primary" name="long_comment" rows="3" required></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-success w-100">Post Comment</button>
-                    </form>
-                </div>
-
-                <!-- Comments Section -->
-                <h5 class="mt-4 text-primary">Comments</h5>
-                <div id="commentSection" class="p-3 rounded bg-light border" style="max-height: 300px; overflow-y: auto;">
-                    <p class="text-muted">No comments yet.</p>
-                </div>
             </div>
         </div>
     </div>
@@ -264,41 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             <p><strong>Project:</strong> ${issue.project}</p>
         `);
 
-        $("#commentIssueId").val(issue.id);
-        loadComments(issue.id);
-
         $("#readIssueModal").modal("show");
-    });
-
-    // Fetch and Display Comments
-    function loadComments(issueId) {
-        $.post("issues_list.php", { action: "fetch_comments", iss_id: issueId }, function (response) {
-            let comments = JSON.parse(response);
-            let commentHTML = comments.length ? "" : "<p>No comments yet.</p>";
-
-            comments.forEach(comment => {
-                commentHTML += `
-                    <div class="border p-2 mb-2">
-                        <p><strong>${comment.fname} ${comment.lname}:</strong> ${comment.short_comment}</p>
-                        <p>${comment.long_comment}</p>
-                        <small class="text-muted">${comment.posted_date}</small>
-                    </div>
-                `;
-            });
-
-            $("#commentSection").html(commentHTML);
-        });
-    }
-
-    // Handle Adding a Comment
-    $("#addCommentForm").submit(function (event) {
-        event.preventDefault();
-        $.post("issues_list.php", $(this).serialize(), function (response) {
-            if (response.trim() === "success") {
-                loadComments($("#commentIssueId").val());
-                $("#addCommentForm")[0].reset();
-            }
-        });
     });
 });
 
