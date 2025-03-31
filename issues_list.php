@@ -9,16 +9,47 @@ Database::disconnect();
 
 // Handle Add, Edit, and Delete Issue Requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+
+    if(isset($_FILES['pdf_attachment'])){
+        $fileTmpPath = $_FILES['pdf_attachment']['tmp_name'];
+        $fileName = $_FILES['pdf_attachment']['name'];
+        $fileSize = $_FILES['pdf_attachment']['size'];
+        $fileType = $_FILES['pdf_attachment']['type'];
+        $fileNameCmps= explode(".",$fileName);
+        $fileExtension = strtolower(end($fileNameCmps));
+        if($fileExtension !== 'pdf'){
+            die("Only PDF files allowed");
+        }
+        if ( $fileSize > 2 * 1024 * 1024) {
+            die("File size exceeds 2 MB limit.");
+        }
+        $newFileName = MD5(time() . $fileName) . '.' . $fileExtension;
+        $uploadFileDir = './uploads/';
+        $dest_path = $uploadFileDir . $newFileName;
+
+
+        if (!is_dir($uploadFileDir)){
+            mkdir($uploadFileDir,0755,true);
+            }
+            if(move_uploaded_file($fileTmpPath,$dest_path)){
+            $attachmentPath = $dest_path;
+            }
+        else{
+            die("Error moving the uploaded file.");
+        }
+    }//end pdf attachment
+
+
     if ($_POST['action'] === 'add') {
-        $stmt = $pdo->prepare("INSERT INTO iss_issues (short_description, long_description, open_date, close_date, priority, org, project, per_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$_POST['short_description'], $_POST['long_description'], $_POST['open_date'], $_POST['close_date'], $_POST['priority'], $_POST['org'], $_POST['project'], $_POST['per_id']]);
+        $stmt = $pdo->prepare("INSERT INTO iss_issues (short_description, long_description, open_date, close_date, priority, org, project, per_id, pdf_attachment) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$_POST['short_description'], $_POST['long_description'], $_POST['open_date'], $_POST['close_date'], $_POST['priority'], $_POST['org'], $_POST['project'], $_POST['per_id'], $newFileName]);
         echo "success";
         exit;
     }
     
     if ($_POST['action'] === 'edit') {
-        $stmt = $pdo->prepare("UPDATE iss_issues SET short_description = ?, long_description = ?, open_date = ?, close_date = ?, priority = ?, org = ?, project = ?, per_id = ? WHERE id = ?");
-        $stmt->execute([$_POST['short_description'], $_POST['long_description'], $_POST['open_date'], $_POST['close_date'], $_POST['priority'], $_POST['org'], $_POST['project'], $_POST['per_id'], $_POST['id']]);
+        $stmt = $pdo->prepare("UPDATE iss_issues SET short_description = ?, long_description = ?, open_date = ?, close_date = ?, priority = ?, org = ?, project = ?, per_id = ?, pdf_attachment = ? WHERE id = ?");
+        $stmt->execute([$_POST['short_description'], $_POST['long_description'], $_POST['open_date'], $_POST['close_date'], $_POST['priority'], $_POST['org'], $_POST['project'], $_POST['per_id'], $_POST['id'], $newFileName]);
         echo "success";
         exit;
     }
@@ -86,11 +117,11 @@ Database::disconnect();
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Add Issue</h5>
+                    <h5 class="modal-title">Add New Issue</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="addIssueForm">
+                <form enctype="multipart/form-data" id="addIssueForm">
                         <input type="hidden" name="action" value="add">
                         <div class="mb-3"><label>Short Description</label><input type="text" class="form-control" name="short_description" required></div>
                         <div class="mb-3"><label>Long Description</label><textarea class="form-control" name="long_description" required></textarea></div>
@@ -100,14 +131,17 @@ Database::disconnect();
                         <div class="mb-3"><label>Organization</label><input type="text" class="form-control" name="org" required></div>
                         <div class="mb-3"><label>Project</label><input type="text" class="form-control" name="project" required></div>
                         <div class="mb-3">
-    <label>Person</label>
-    <select class="form-control" name="per_id" required>
-        <option value="">Select Person</option>
-        <?php foreach ($people as $person): ?>
-            <option value="<?= $person['id']; ?>"><?= htmlspecialchars($person['full_name']); ?></option>
-        <?php endforeach; ?>
-    </select>
-</div>
+                        <label>Person</label>
+                        <select class="form-control" name="per_id" required>
+                            <option value="">Select Person</option>
+                            <?php foreach ($people as $person): ?>
+                                <option value="<?= $person['id']; ?>"><?= htmlspecialchars($person['full_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <br>
+                        <label for="pdf_attachment">PDF</label>
+                        <input type = "file" name="pdf_attachment" accept="application/pdf" />
+                    </div>
                         <button type="submit" class="btn btn-primary">Add Issue</button>
                     </form>
                 </div>
@@ -159,6 +193,9 @@ Database::disconnect();
                 <option value="<?= $person['id']; ?>"><?= htmlspecialchars($person['full_name']); ?></option>
             <?php endforeach; ?>
         </select>
+        <br>
+                        <label for="pdf_attachment">PDF</label>
+                        <input type = "file" name="pdf_attachment" accept="application/pdf" />
     </div>
                         <button type="submit" class="btn btn-primary">Save Changes</button>
                     </form>
