@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 <body>
     <div class="container mt-5">
         <h1 class="mb-4">Persons List</h1>
-        <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addPersonModal">+ Add Person</button>
+        <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addPersonModal">+ Add New Person</button>
         <a href="issues_list.php" class="btn btn-secondary mb-3">Go To Issues List</a>
         <table class="table table-bordered">
             <thead class="table-dark">
