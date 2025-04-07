@@ -15,18 +15,19 @@ if ($issueId <= 0) {
     die("Invalid issue ID.");
 }
 
-// Fetch all issues for dropdown in Add and Edit modals
-$issues = $pdo->query("SELECT id, short_description FROM iss_issues ORDER BY short_description")->fetchAll(PDO::FETCH_ASSOC);
-
 // Fetch all persons for dropdowns in Add and Edit modals
 $people = $pdo->query("SELECT id, CONCAT(fname, ' ', lname) AS full_name FROM iss_persons ORDER BY lname")->fetchAll(PDO::FETCH_ASSOC);
 
 // Handle Add, Edit, and Delete Comment Requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
+        // Make sure we're using $issueId from the URL and not $_POST['iss_id']
         $stmt = $pdo->prepare("INSERT INTO iss_comments (per_id, iss_id, short_comment, long_comment, posted_date) VALUES (?, ?, ?, ?, ?)");
-        $stmt->execute([$_POST['per_id'], $_POST['iss_id'], $_POST['short_comment'], $_POST['long_comment'], date('Y-m-d')]);
-        echo "success";
+        if ($stmt->execute([$_POST['per_id'], $issueId, $_POST['short_comment'], $_POST['long_comment'], date('Y-m-d')])) {
+            echo "success";
+        } else {
+            print_r($stmt->errorInfo());  // Print any errors
+        }
         exit;
     }
 
@@ -45,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Fetch all comments
+// Fetch all comments for the given issue
 $stmt = $pdo->prepare("SELECT c.id, c.per_id, c.short_comment, c.long_comment, c.posted_date, p.fname, p.lname, i.short_description AS issue_desc 
                        FROM iss_comments c 
                        JOIN iss_persons p ON c.per_id = p.id 
@@ -54,7 +55,6 @@ $stmt = $pdo->prepare("SELECT c.id, c.per_id, c.short_comment, c.long_comment, c
                        ORDER BY c.posted_date DESC");
 $stmt->execute([$issueId]);
 $comments = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 
 Database::disconnect();
 ?>
@@ -220,6 +220,7 @@ Database::disconnect();
         $("#addCommentForm").submit(function (event) {
             event.preventDefault();
             $.post("comments_list.php", $(this).serialize(), function (response) {
+                console.log(response);  // Check if it's success or error
                 if (response.trim() === "success") location.reload();
             });
         });

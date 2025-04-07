@@ -12,7 +12,6 @@ $pdo = Database::connect();
 
 // Fetch all persons
 $persons = $pdo->query("SELECT * FROM iss_persons ORDER BY lname ASC")->fetchAll(PDO::FETCH_ASSOC);
-Database::disconnect();
 
 // Handle Add, Edit, Delete, and Read Person Requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -171,6 +170,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         </div>
     </div>
 
+    <!-- Add Person Modal -->
+<div class="modal fade" id="addPersonModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Person</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addPersonForm">
+                    <div class="mb-3">
+                        <label for="addFname" class="form-label">First Name</label>
+                        <input type="text" class="form-control" id="addFname" name="fname" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="addLname" class="form-label">Last Name</label>
+                        <input type="text" class="form-control" id="addLname" name="lname" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="addMobile" class="form-label">Mobile</label>
+                        <input type="text" class="form-control" id="addMobile" name="mobile">
+                    </div>
+                    <div class="mb-3">
+                        <label for="addEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="addEmail" name="email" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="addAdmin" class="form-label">Admin</label>
+                        <select class="form-select" id="addAdmin" name="admin">
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Person</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+
 
 
     
@@ -229,6 +269,21 @@ $("#confirmDeletePerson").on("click", function () {
             });
         });
     });
+
+    // Add Person
+$("#addPersonForm").on("submit", function (e) {
+    e.preventDefault();
+    let formData = $(this).serialize() + '&action=add';
+    $.post("persons_list.php", formData, function (response) {
+        if (response.trim() === "success") {
+            $("#addPersonModal").modal("hide");
+            location.reload();
+        } else {
+            alert("Failed to add person.");
+        }
+    });
+});
+
     </script>
 </body>
 </html>

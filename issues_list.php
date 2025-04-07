@@ -14,7 +14,6 @@ $pdo = Database::connect();
 // Fetch all persons (ID, Full Name)
 $people = $pdo->query("SELECT id, CONCAT(fname, ' ', lname) AS full_name FROM iss_persons ORDER BY lname ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-Database::disconnect();
 
 // Handle Add, Edit, and Delete Issue Requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -275,11 +274,29 @@ Database::disconnect();
     $(document).ready(function () {
         // Add Issue
         $("#addIssueForm").submit(function (event) {
-            event.preventDefault();
-            $.post("issues_list.php", $(this).serialize(), function (response) {
-                if (response.trim() === "success") location.reload();
-            });
-        });
+    event.preventDefault();
+    
+    var formData = new FormData(this); // Includes file
+
+    $.ajax({
+        url: "issues_list.php",
+        type: "POST",
+        data: formData,
+        contentType: false, // Needed for file upload
+        processData: false, // Needed for file upload
+        success: function (response) {
+            if (response.trim() === "success") {
+                location.reload();
+            } else {
+                alert("Error: " + response);
+            }
+        },
+        error: function () {
+            alert("Something went wrong.");
+        }
+    });
+});
+
 
         $(document).ready(function () {
     // Load Issue Details
