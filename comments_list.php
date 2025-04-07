@@ -2,6 +2,11 @@
 require '../database/database.php';
 $pdo = Database::connect();
 
+$issueId = isset($_GET['issue_id']) ? (int)$_GET['issue_id'] : 0;
+if ($issueId <= 0) {
+    die("Invalid issue ID.");
+}
+
 // Fetch all issues for dropdown in Add and Edit modals
 $issues = $pdo->query("SELECT id, short_description FROM iss_issues ORDER BY short_description")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -33,10 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Fetch all comments
-$comments = $pdo->query("SELECT c.id, c.short_comment, c.long_comment, c.posted_date, p.fname, p.lname, i.short_description AS issue_desc FROM iss_comments c 
-                         JOIN iss_persons p ON c.per_id = p.id 
-                         JOIN iss_issues i ON c.iss_id = i.id 
-                         ORDER BY c.posted_date DESC")->fetchAll(PDO::FETCH_ASSOC);
+$stmt = $pdo->prepare("SELECT c.id, c.short_comment, c.long_comment, c.posted_date, p.fname, p.lname, i.short_description AS issue_desc 
+                       FROM iss_comments c 
+                       JOIN iss_persons p ON c.per_id = p.id 
+                       JOIN iss_issues i ON c.iss_id = i.id 
+                       WHERE c.iss_id = ? 
+                       ORDER BY c.posted_date DESC");
+$stmt->execute([$issueId]);
+$comments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 
 Database::disconnect();
 ?>
@@ -53,8 +63,9 @@ Database::disconnect();
 </head>
 <body>
     <div class="container mt-5">
-        <h1 class="mb-4">Comments List</h1>
+        <h1 class="mb-4">Comments for Issue #<?= $issueId; ?></h1>
         <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addCommentModal">+ Add Comment</button>
+        <a href="issues_list.php" class="btn btn-secondary mb-3">Go Back to Issues</a>
         <table class="table table-bordered">
             <thead class="table-dark">
                 <tr>
@@ -104,15 +115,7 @@ Database::disconnect();
                             <label>Long Comment</label>
                             <textarea class="form-control" name="long_comment" required></textarea>
                         </div>
-                        <div class="mb-3">
-                            <label>Issue</label>
-                            <select class="form-control" name="iss_id" required>
-                                <option value="">Select Issue</option>
-                                <?php foreach ($issues as $issue): ?>
-                                    <option value="<?= $issue['id']; ?>"><?= htmlspecialchars($issue['short_description']); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
+                        <input type="hidden" name="iss_id" value="<?= $issueId; ?>">
                         <div class="mb-3">
                             <label>Person</label>
                             <select class="form-control" name="per_id" required>
