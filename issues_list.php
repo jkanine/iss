@@ -60,10 +60,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         echo "success";
         exit;
     }
+    if ($_POST['action'] === 'fetch_comments') {
+        $stmt = $pdo->prepare("SELECT * FROM iss_comments WHERE iss_id = ?");
+        $stmt->execute([$_POST['iss_id']]);
+        echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+        exit;
+    }
+
+    if ($_POST['action'] === 'add_comment') {
+        $stmt = $pdo->prepare("INSERT INTO iss_comments (per_id, iss_id, short_comment, long_comment, posted_date) VALUES (?, ?, ?, ?, NOW())");
+        $stmt->execute([$_POST['per_id'], $_POST['iss_id'], $_POST['short_comment'], $_POST['long_comment']]);
+        echo "success";
+        exit;
+    }
+
+    if ($_POST['action'] === 'delete_comment') {
+        $stmt = $pdo->prepare("DELETE FROM iss_comments WHERE id = ?");
+        $stmt->execute([$_POST['comment_id']]);
+        echo "success";
+        exit;
+    }
 }
 
 // Fetch all issues
-$issues = $pdo->query("SELECT * FROM iss_issues ORDER BY open_date DESC")->fetchAll(PDO::FETCH_ASSOC);
+$issues = $pdo->query("
+    SELECT iss_issues.*, CONCAT(iss_persons.fname, ' ', iss_persons.lname) AS person_name 
+    FROM iss_issues 
+    LEFT JOIN iss_persons ON iss_issues.per_id = iss_persons.id 
+    ORDER BY iss_issues.open_date DESC
+")->fetchAll(PDO::FETCH_ASSOC);
+
 Database::disconnect();
 ?>
 
@@ -102,10 +128,12 @@ Database::disconnect();
                         <td><?= $issue['close_date']; ?></td>
                         <td><?= $issue['priority']; ?></td>
                         <td>
-                            <button class="btn btn-info btn-sm read-btn" data-issue='<?= json_encode($issue); ?>'>Read</button>
-                            <button class="btn btn-warning btn-sm edit-btn">Edit</button>
-                            <button class="btn btn-danger btn-sm delete-btn" data-issue='<?= json_encode($issue); ?>'>Delete</button>
-                        </td>
+    <button class="btn btn-info btn-sm read-btn" data-issue='<?= json_encode($issue, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>'>Read</button>
+    <button class="btn btn-warning btn-sm edit-btn">Edit</button>
+    <button class="btn btn-danger btn-sm delete-btn" data-issue='<?= json_encode($issue); ?>'>Delete</button>
+    <a href="comments_list.php?issue_id=<?= $issue['id']; ?>" class="btn btn-success btn-sm">Comments</a>
+</td>
+
                     </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -241,20 +269,22 @@ Database::disconnect();
         });
 
         $(document).ready(function () {
-    // Load Issue Details and Comments
+    // Load Issue Details
     $(document).on("click", ".read-btn", function () {
         let issue = $(this).data("issue");
 
         $("#readIssueContent").html(`
-            <p><strong>ID:</strong> ${issue.id}</p>
-            <p><strong>Short Description:</strong> ${issue.short_description}</p>
-            <p><strong>Long Description:</strong> ${issue.long_description}</p>
-            <p><strong>Open Date:</strong> ${issue.open_date}</p>
-            <p><strong>Close Date:</strong> ${issue.close_date}</p>
-            <p><strong>Priority:</strong> ${issue.priority}</p>
-            <p><strong>Organization:</strong> ${issue.org}</p>
-            <p><strong>Project:</strong> ${issue.project}</p>
-        `);
+    <p><strong>ID:</strong> ${issue.id}</p>
+    <p><strong>Short Description:</strong> ${issue.short_description}</p>
+    <p><strong>Long Description:</strong> ${issue.long_description}</p>
+    <p><strong>Open Date:</strong> ${issue.open_date}</p>
+    <p><strong>Close Date:</strong> ${issue.close_date}</p>
+    <p><strong>Priority:</strong> ${issue.priority}</p>
+    <p><strong>Organization:</strong> ${issue.org}</p>
+    <p><strong>Project:</strong> ${issue.project}</p>
+    <p><strong>Person:</strong> ${issue.person_name ? issue.person_name : 'N/A'}</p>
+`);
+
 
         $("#readIssueModal").modal("show");
     });
