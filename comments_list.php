@@ -1,4 +1,12 @@
 <?php
+session_start();
+
+if(!isset($_SESSION['user_id'])){
+    session_destroy();
+    header('Location: login.php');
+    exit;
+}
+
 require '../database/database.php';
 $pdo = Database::connect();
 
@@ -38,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 }
 
 // Fetch all comments
-$stmt = $pdo->prepare("SELECT c.id, c.short_comment, c.long_comment, c.posted_date, p.fname, p.lname, i.short_description AS issue_desc 
+$stmt = $pdo->prepare("SELECT c.id, c.per_id, c.short_comment, c.long_comment, c.posted_date, p.fname, p.lname, i.short_description AS issue_desc 
                        FROM iss_comments c 
                        JOIN iss_persons p ON c.per_id = p.id 
                        JOIN iss_issues i ON c.iss_id = i.id 
@@ -64,6 +72,7 @@ Database::disconnect();
 <body>
     <div class="container mt-5">
         <h1 class="mb-4">Comments for Issue #<?= $issueId; ?></h1>
+        <a href="logout.php" class="btn btn-warning mb-3">Logout</a>
         <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addCommentModal">+ Add Comment</button>
         <a href="issues_list.php" class="btn btn-secondary mb-3">Go Back to Issues</a>
         <table class="table table-bordered">
@@ -87,8 +96,10 @@ Database::disconnect();
                         <td><?= $comment['posted_date']; ?></td>
                         <td>
                             <button class="btn btn-info btn-sm read-btn" data-comment='<?= json_encode($comment); ?>'>Read</button>
-                            <button class="btn btn-info btn-sm edit-btn" data-comment='<?= json_encode($comment); ?>'>Edit</button>
+                            <?php if ($_SESSION['admin'] === "Y" || $_SESSION['user_id'] == $comment['per_id']) { ?>
+                            <button class="btn btn-warning btn-sm edit-btn" data-comment='<?= json_encode($comment); ?>'>Edit</button>
                             <button class="btn btn-danger btn-sm delete-btn" data-comment='<?= json_encode($comment); ?>'>Delete</button>
+                            <?php } ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

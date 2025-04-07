@@ -1,4 +1,13 @@
 <?php
+session_start();
+
+if(!isset($_SESSION['user_id'])){
+    session_destroy();
+    header('Location: login.php');
+    exit;
+}
+
+
 require '../database/database.php';
 $pdo = Database::connect();
 
@@ -106,6 +115,7 @@ Database::disconnect();
 <body>
     <div class="container mt-5">
         <h1 class="mb-4">Issue List</h1>
+        <a href="logout.php" class="btn btn-warning mb-3">Logout</a>
         <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addIssueModal">+ Add Issue</button>
         <a href="persons_list.php" class="btn btn-secondary mb-3">Go To Persons List</a>
         <table class="table table-bordered">
@@ -128,9 +138,12 @@ Database::disconnect();
                         <td><?= $issue['close_date']; ?></td>
                         <td><?= $issue['priority']; ?></td>
                         <td>
+    
     <button class="btn btn-info btn-sm read-btn" data-issue='<?= json_encode($issue, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>'>Read</button>
+    <?php if($_SESSION['user_id'] == $issue['per_id'] || $_SESSION['admin'] == "Y"){?>
     <button class="btn btn-warning btn-sm edit-btn">Edit</button>
     <button class="btn btn-danger btn-sm delete-btn" data-issue='<?= json_encode($issue); ?>'>Delete</button>
+    <?php } ?>
     <a href="comments_list.php?issue_id=<?= $issue['id']; ?>" class="btn btn-success btn-sm">Comments</a>
 </td>
 

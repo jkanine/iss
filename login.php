@@ -35,17 +35,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Compare the hashed password with the stored password
             if ($hashed_password === $user['pwd_hash']) {
                 // Store user session data
-                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_id'] = $user['id']; //this is checked to verify login
                 $_SESSION['email'] = $user['email'];
+                $_SESSION['admin'] = $user['admin'];
 
                 // Redirect to the issues list page
                 header('Location: issues_list.php');
                 exit();
+
             } else {
                 $error = 'Incorrect email or password.';
+                session_destroy();
+
             }
         } else {
-            $error = 'User not found.';
+            $error = 'Incorrect email or password.';
+            session_destroy();
         }
     }
 }

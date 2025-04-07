@@ -1,4 +1,12 @@
 <?php
+session_start();
+
+if(!isset($_SESSION['user_id'])){
+    session_destroy();
+    header('Location: login.php');
+    exit;
+}
+
 require '../database/database.php';
 $pdo = Database::connect();
 
@@ -54,6 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 <body>
     <div class="container mt-5">
         <h1 class="mb-4">Persons List</h1>
+        <a href="logout.php" class="btn btn-warning mb-3">Logout</a>
         <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addPersonModal">+ Add New Person</button>
         <a href="issues_list.php" class="btn btn-secondary mb-3">Go To Issues List</a>
         <table class="table table-bordered">
@@ -75,8 +84,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         <td><?= $person['admin'] ? 'Yes' : 'No'; ?></td>
                         <td>
                             <button class="btn btn-info btn-sm read-btn">Read</button>
+                            <?php if($_SESSION['user_id'] == $person['id'] || $_SESSION['admin'] == "Y"){?>
                             <button class="btn btn-warning btn-sm edit-btn">Edit</button>
                             <button class="btn btn-danger btn-sm delete-btn">Delete</button>
+                            <?php } ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
