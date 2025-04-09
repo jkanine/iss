@@ -18,7 +18,10 @@ $people = $pdo->query("SELECT id, CONCAT(fname, ' ', lname) AS full_name FROM is
 // Handle Add, Edit, and Delete Issue Requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
-    if(isset($_FILES['pdf_attachment'])){
+    $attachmentPath = null;
+    $newFileName = null;
+
+if (isset($_FILES['pdf_attachment']) && $_FILES['pdf_attachment']['error'] === UPLOAD_ERR_OK) {
         $fileTmpPath = $_FILES['pdf_attachment']['tmp_name'];
         $fileName = $_FILES['pdf_attachment']['name'];
         $fileSize = $_FILES['pdf_attachment']['size'];
@@ -56,11 +59,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
     
     if ($_POST['action'] === 'edit') {
-        $stmt = $pdo->prepare("UPDATE iss_issues SET short_description = ?, long_description = ?, open_date = ?, close_date = ?, priority = ?, org = ?, project = ?, per_id = ?, pdf_attachment = ? WHERE id = ?");
-        $stmt->execute([$_POST['short_description'], $_POST['long_description'], $_POST['open_date'], $_POST['close_date'], $_POST['priority'], $_POST['org'], $_POST['project'], $_POST['per_id'], $_POST['id'], $newFileName]);
+        if ($newFileName) {
+            // Update everything including pdf_attachment
+            $stmt = $pdo->prepare("UPDATE iss_issues SET short_description = ?, long_description = ?, open_date = ?, close_date = ?, priority = ?, org = ?, project = ?, per_id = ?, pdf_attachment = ? WHERE id = ?");
+            $stmt->execute([
+                $_POST['short_description'], $_POST['long_description'], $_POST['open_date'], $_POST['close_date'],
+                $_POST['priority'], $_POST['org'], $_POST['project'], $_POST['per_id'], $newFileName, $_POST['id']
+            ]);
+        } else {
+            // Update everything except pdf_attachment
+            $stmt = $pdo->prepare("UPDATE iss_issues SET short_description = ?, long_description = ?, open_date = ?, close_date = ?, priority = ?, org = ?, project = ?, per_id = ? WHERE id = ?");
+            $stmt->execute([
+                $_POST['short_description'], $_POST['long_description'], $_POST['open_date'], $_POST['close_date'],
+                $_POST['priority'], $_POST['org'], $_POST['project'], $_POST['per_id'], $_POST['id']
+            ]);
+        }
+    
         echo "success";
         exit;
     }
+    
+    
 
     if ($_POST['action'] === 'delete') {
         $stmt = $pdo->prepare("DELETE FROM iss_issues WHERE id = ?");
@@ -270,111 +289,115 @@ Database::disconnect();
 
 
 
-    <script>
-    $(document).ready(function () {
-        // Add Issue
-        $("#addIssueForm").submit(function (event) {
-    event.preventDefault();
-    
-    var formData = new FormData(this); // Includes file
+        <script>
+$(document).ready(function () {
+    // ----- Add Issue -----
+    $("#addIssueForm").submit(function (event) {
+        event.preventDefault();
+        var formData = new FormData(this); // includes file
 
-    $.ajax({
-        url: "issues_list.php",
-        type: "POST",
-        data: formData,
-        contentType: false, // Needed for file upload
-        processData: false, // Needed for file upload
-        success: function (response) {
+        $.ajax({
+            url: "issues_list.php",
+            type: "POST",
+            data: formData,
+            contentType: false,
+            processData: false,
+            success: function (response) {
+                if (response.trim() === "success") {
+                    location.reload();
+                } else {
+                    alert("Error: " + response);
+                }
+            },
+            error: function () {
+                alert("Something went wrong.");
+            }
+        });
+    });
+
+    // ----- Read Issue -----
+    $(document).on("click", ".read-btn", function () {
+        let issue = $(this).data("issue");
+
+        $("#readIssueContent").html(`
+            <p><strong>ID:</strong> ${issue.id}</p>
+            <p><strong>Short Description:</strong> ${issue.short_description}</p>
+            <p><strong>Long Description:</strong> ${issue.long_description}</p>
+            <p><strong>Open Date:</strong> ${issue.open_date}</p>
+            <p><strong>Close Date:</strong> ${issue.close_date}</p>
+            <p><strong>Priority:</strong> ${issue.priority}</p>
+            <p><strong>Organization:</strong> ${issue.org}</p>
+            <p><strong>Project:</strong> ${issue.project}</p>
+            <p><strong>Person:</strong> ${issue.person_name ? issue.person_name : 'N/A'}</p>
+        `);
+
+        var modal = new bootstrap.Modal(document.getElementById('readIssueModal'));
+        modal.show();
+    });
+
+    // ----- Edit Issue -----
+    $(document).on("click", ".edit-btn", function () {
+        let issue = JSON.parse($(this).closest("tr").find(".read-btn").attr("data-issue"));
+
+        $("#editIssueForm input[name='id']").val(issue.id);
+        $("#editIssueForm input[name='short_description']").val(issue.short_description);
+        $("#editIssueForm textarea[name='long_description']").val(issue.long_description);
+        $("#editIssueForm input[name='open_date']").val(issue.open_date);
+        $("#editIssueForm input[name='close_date']").val(issue.close_date);
+        $("#editIssueForm input[name='priority']").val(issue.priority);
+        $("#editIssueForm input[name='org']").val(issue.org);
+        $("#editIssueForm input[name='project']").val(issue.project);
+        $("#editIssueForm select[name='per_id']").val(issue.per_id);
+
+        var modal = new bootstrap.Modal(document.getElementById('editIssueModal'));
+        modal.show();
+    });
+
+    $("#editIssueForm").submit(function (event) {
+        event.preventDefault();
+        var formData = new FormData(this); // includes file
+
+        $.ajax({
+            url: "issues_list.php",
+            type: "POST",
+            data: formData,
+            contentType: false,
+            processData: false,
+            success: function (response) {
+                if (response.trim() === "success") {
+                    location.reload();
+                } else {
+                    alert("Error: " + response);
+                }
+            },
+            error: function () {
+                alert("Something went wrong.");
+            }
+        });
+    });
+
+    // ----- Delete Issue -----
+    $(document).on("click", ".delete-btn", function () {
+        let issue = $(this).data("issue");
+        $("#deleteIssueId").val(issue.id);
+        $("#deleteIssueIdText").text(issue.id);
+        $("#deleteIssueDescription").text(issue.short_description);
+
+        var modal = new bootstrap.Modal(document.getElementById('deleteIssueModal'));
+        modal.show();
+    });
+
+    $("#confirmDelete").click(function () {
+        let issueId = $("#deleteIssueId").val();
+        $.post("issues_list.php", { action: "delete", id: issueId }, function (response) {
             if (response.trim() === "success") {
                 location.reload();
             } else {
                 alert("Error: " + response);
             }
-        },
-        error: function () {
-            alert("Something went wrong.");
-        }
-    });
-});
-
-
-        $(document).ready(function () {
-    // Load Issue Details
-    $(document).on("click", ".read-btn", function () {
-        let issue = $(this).data("issue");
-
-        $("#readIssueContent").html(`
-    <p><strong>ID:</strong> ${issue.id}</p>
-    <p><strong>Short Description:</strong> ${issue.short_description}</p>
-    <p><strong>Long Description:</strong> ${issue.long_description}</p>
-    <p><strong>Open Date:</strong> ${issue.open_date}</p>
-    <p><strong>Close Date:</strong> ${issue.close_date}</p>
-    <p><strong>Priority:</strong> ${issue.priority}</p>
-    <p><strong>Organization:</strong> ${issue.org}</p>
-    <p><strong>Project:</strong> ${issue.project}</p>
-    <p><strong>Person:</strong> ${issue.person_name ? issue.person_name : 'N/A'}</p>
-`);
-
-
-        $("#readIssueModal").modal("show");
-    });
-});
-
-
-        // Edit Issue
-        $(document).on("click", ".edit-btn", function () {
-    let row = $(this).closest("tr");
-    let issue = JSON.parse(row.find(".read-btn").attr("data-issue"));
-
-    $("#editIssueForm input[name='id']").val(issue.id);
-    $("#editIssueForm input[name='short_description']").val(issue.short_description);
-    $("#editIssueForm textarea[name='long_description']").val(issue.long_description);
-    $("#editIssueForm input[name='open_date']").val(issue.open_date);
-    $("#editIssueForm input[name='close_date']").val(issue.close_date);
-    $("#editIssueForm input[name='priority']").val(issue.priority);
-    $("#editIssueForm input[name='org']").val(issue.org);
-    $("#editIssueForm input[name='project']").val(issue.project);
-    
-    // Select the correct person in the dropdown
-    $("#editIssueForm select[name='per_id']").val(issue.per_id);
-
-    $("#editIssueModal").modal("show");
-});
-
-        $("#editIssueForm").submit(function (event) {
-            event.preventDefault();
-            $.post("issues_list.php", $(this).serialize(), function (response) {
-                if (response.trim() === "success") location.reload();
-            });
-        });
-
-        $(document).ready(function () {
-    // Open Delete Confirmation Modal
-    $(document).on("click", ".delete-btn", function () {
-        let issue = $(this).data("issue");
-        
-        // Populate modal with issue details
-        $("#deleteIssueId").val(issue.id);
-        $("#deleteIssueIdText").text(issue.id);
-        $("#deleteIssueDescription").text(issue.short_description);
-
-        // Show the modal
-        $("#deleteIssueModal").modal("show");
-    });
-
-    // Confirm Deletion
-    $("#confirmDelete").click(function () {
-        let issueId = $("#deleteIssueId").val();
-        
-        $.post("issues_list.php", { action: "delete", id: issueId }, function (response) {
-            if (response.trim() === "success") {
-                location.reload();
-            }
         });
     });
 });
-
-    });
 </script>
 </body>
 </html>

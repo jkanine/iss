@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-if(!isset($_SESSION['user_id'])){
+if (!isset($_SESSION['user_id'])) {
     session_destroy();
     header('Location: login.php');
     exit;
@@ -11,22 +11,52 @@ require '../database/database.php';
 $pdo = Database::connect();
 
 $issueId = isset($_GET['issue_id']) ? (int)$_GET['issue_id'] : 0;
-if ($issueId <= 0) {
-    die("Invalid issue ID.");
-}
 
-// Fetch all persons for dropdowns in Add and Edit modals
-$people = $pdo->query("SELECT id, CONCAT(fname, ' ', lname) AS full_name FROM iss_persons ORDER BY lname")->fetchAll(PDO::FETCH_ASSOC);
-
-// Handle Add, Edit, and Delete Comment Requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add') {
-        // Make sure we're using $issueId from the URL and not $_POST['iss_id']
+        if ($issueId <= 0) {
+            die("Invalid issue ID.");
+        }
         $stmt = $pdo->prepare("INSERT INTO iss_comments (per_id, iss_id, short_comment, long_comment, posted_date) VALUES (?, ?, ?, ?, ?)");
         if ($stmt->execute([$_POST['per_id'], $issueId, $_POST['short_comment'], $_POST['long_comment'], date('Y-m-d')])) {
             echo "success";
         } else {
-            print_r($stmt->errorInfo());  // Print any errors
+            print_r($stmt->errorInfo());
+        }
+        exit;
+    }
+
+    if ($_POST['action'] === 'edit') {
+        $stmt = $pdo->prepare("UPDATE iss_comments SET short_comment = ?, long_comment = ?, posted_date = ? WHERE id = ?");
+        $stmt->execute([$_POST['short_comment'], $_POST['long_comment'], date('Y-m-d'), $_POST['id']]);
+        echo "success";
+        exit;
+    }
+
+    if ($_POST['action'] === 'delete') {
+        $stmt = $pdo->prepare("DELETE FROM iss_comments WHERE id = ?");
+        $stmt->execute([$_POST['id']]);
+        echo "success";
+        exit;
+    }
+    exit;
+}
+
+// If GET: Fetch page and comments normally
+if ($issueId <= 0) {
+    die("Invalid issue ID.");
+}
+
+
+$people = $pdo->query("SELECT id, CONCAT(fname, ' ', lname) AS full_name FROM iss_persons ORDER BY lname")->fetchAll(PDO::FETCH_ASSOC);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] === 'add') {
+        $stmt = $pdo->prepare("INSERT INTO iss_comments (per_id, iss_id, short_comment, long_comment, posted_date) VALUES (?, ?, ?, ?, ?)");
+        if ($stmt->execute([$_POST['per_id'], $issueId, $_POST['short_comment'], $_POST['long_comment'], date('Y-m-d')])) {
+            echo "success";
+        } else {
+            print_r($stmt->errorInfo());
         }
         exit;
     }
@@ -46,7 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Fetch all comments for the given issue
 $stmt = $pdo->prepare("SELECT c.id, c.per_id, c.short_comment, c.long_comment, c.posted_date, p.fname, p.lname, i.short_description AS issue_desc 
                        FROM iss_comments c 
                        JOIN iss_persons p ON c.per_id = p.id 
@@ -95,11 +124,12 @@ Database::disconnect();
                         <td><?= $comment['issue_desc']; ?></td>
                         <td><?= $comment['posted_date']; ?></td>
                         <td>
-                            <button class="btn btn-info btn-sm read-btn" data-comment='<?= json_encode($comment); ?>'>Read</button>
-                            <?php if ($_SESSION['admin'] === "Y" || $_SESSION['user_id'] == $comment['per_id']) { ?>
-                            <button class="btn btn-warning btn-sm edit-btn" data-comment='<?= json_encode($comment); ?>'>Edit</button>
-                            <button class="btn btn-danger btn-sm delete-btn" data-comment='<?= json_encode($comment); ?>'>Delete</button>
-                            <?php } ?>
+                        <button class="btn btn-info btn-sm read-btn" data-comment='<?= htmlspecialchars(json_encode($comment), ENT_QUOTES, 'UTF-8'); ?>'>Read</button>
+<?php if ($_SESSION['admin'] === "Y" || $_SESSION['user_id'] == $comment['per_id']) { ?>
+<button class="btn btn-warning btn-sm edit-btn" data-comment='<?= htmlspecialchars(json_encode($comment), ENT_QUOTES, 'UTF-8'); ?>'>Edit</button>
+<button class="btn btn-danger btn-sm delete-btn" data-comment='<?= htmlspecialchars(json_encode($comment), ENT_QUOTES, 'UTF-8'); ?>'>Delete</button>
+<?php } ?>
+
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -166,31 +196,31 @@ Database::disconnect();
     </div>
 
     <!-- Edit Comment Modal -->
-    <div class="modal fade" id="editCommentModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Comment</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="editCommentForm">
-                        <input type="hidden" name="action" value="edit">
-                        <input type="hidden" name="id">
-                        <div class="mb-3">
-                            <label>Short Comment</label>
-                            <input type="text" class="form-control" name="short_comment" required>
-                        </div>
-                        <div class="mb-3">
-                            <label>Long Comment</label>
-                            <textarea class="form-control" name="long_comment" required></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Save Changes</button>
-                    </form>
-                </div>
+<div class="modal fade" id="editCommentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Comment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editCommentForm">
+                    <input type="hidden" name="action" value="edit">
+                    <input type="hidden" name="id">
+                    <div class="mb-3">
+                        <label>Short Comment</label>
+                        <input type="text" class="form-control" name="short_comment" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Long Comment</label>
+                        <textarea class="form-control" name="long_comment" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </form>
             </div>
         </div>
     </div>
+</div>
 
     <!-- Delete Confirmation Modal -->
     <div class="modal fade" id="deleteCommentModal" tabindex="-1">
@@ -214,61 +244,72 @@ Database::disconnect();
         </div>
     </div>
 
+    <!-- Bootstrap 5-compatible JS -->
     <script>
-    $(document).ready(function () {
-        // Add Comment
-        $("#addCommentForm").submit(function (event) {
-            event.preventDefault();
-            $.post("comments_list.php", $(this).serialize(), function (response) {
-                console.log(response);  // Check if it's success or error
-                if (response.trim() === "success") location.reload();
-            });
-        });
-
-        // Edit Comment
-        $(document).on("click", ".edit-btn", function () {
-            let comment = $(this).data("comment");
-            $("#editCommentModal input[name='id']").val(comment.id);
-            $("#editCommentModal input[name='short_comment']").val(comment.short_comment);
-            $("#editCommentModal textarea[name='long_comment']").val(comment.long_comment);
-            $("#editCommentModal").modal("show");
-        });
-
-        // Save Edit Comment
-        $("#editCommentForm").submit(function (event) {
-            event.preventDefault();
-            $.post("comments_list.php", $(this).serialize(), function (response) {
-                if (response.trim() === "success") location.reload();
-            });
-        });
-
-        // Delete Comment
-        $(document).on("click", ".delete-btn", function () {
-            let comment = $(this).data("comment");
-            $("#deleteCommentIdText").text(comment.id);
-            $("#deleteCommentShortText").text(comment.short_comment);
-            $("#deleteCommentId").val(comment.id);
-            $("#deleteCommentModal").modal("show");
-        });
-
-        // Confirm Delete
-        $("#confirmDeleteComment").click(function () {
-            $.post("comments_list.php", { action: "delete", id: $("#deleteCommentId").val() }, function (response) {
-                if (response.trim() === "success") location.reload();
-            });
-        });
-
-        // Read Comment
-        $(document).on("click", ".read-btn", function () {
-            let comment = $(this).data("comment");
-            $("#readShortComment").text(comment.short_comment);
-            $("#readLongComment").text(comment.long_comment);
-            $("#readPersonName").text(comment.fname + ' ' + comment.lname);
-            $("#readIssueDesc").text(comment.issue_desc);
-            $("#readPostedDate").text(comment.posted_date);
-            $("#readCommentModal").modal("show");
+$(document).ready(function () {
+    // Add comment form submission
+    $("#addCommentForm").submit(function (event) {
+        event.preventDefault();
+        $.post("comments_list.php", $(this).serialize(), function (response) {
+            if (response.trim() === "success") location.reload();
+            else alert("Error: " + response);
         });
     });
+
+    // Edit button click - populate and show modal
+    $(document).on("click", ".edit-btn", function () {
+        const comment = $(this).data("comment");
+        $("#editCommentModal input[name='id']").val(comment.id);
+        $("#editCommentModal input[name='short_comment']").val(comment.short_comment);
+        $("#editCommentModal textarea[name='long_comment']").val(comment.long_comment);
+        const editModal = new bootstrap.Modal(document.getElementById('editCommentModal'));
+        editModal.show();
+    });
+
+    // Edit comment form submission
+    $("#editCommentForm").submit(function (event) {
+        event.preventDefault();
+        $.post("comments_list.php", $(this).serialize(), function (response) {
+            if (response.trim() === "success") location.reload();
+            else alert("Error: " + response);
+        });
+    });
+
+    // Delete button click - populate and show modal
+    $(document).on("click", ".delete-btn", function () {
+        const comment = $(this).data("comment");
+        $("#deleteCommentIdText").text(comment.id);
+        $("#deleteCommentShortText").text(comment.short_comment);
+        $("#deleteCommentId").val(comment.id);
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteCommentModal'));
+        deleteModal.show();
+    });
+
+    // Confirm deletion
+    $("#confirmDeleteComment").click(function () {
+        $.post("comments_list.php", {
+            action: "delete",
+            id: $("#deleteCommentId").val()
+        }, function (response) {
+            if (response.trim() === "success") location.reload();
+            else alert("Error: " + response);
+        });
+    });
+
+    // Read button click - populate and show modal
+    $(document).on("click", ".read-btn", function () {
+        const comment = $(this).data("comment");
+        $("#readShortComment").text(comment.short_comment);
+        $("#readLongComment").text(comment.long_comment);
+        $("#readPersonName").text(comment.fname + ' ' + comment.lname);
+        $("#readIssueDesc").text(comment.issue_desc);
+        $("#readPostedDate").text(comment.posted_date);
+        const readModal = new bootstrap.Modal(document.getElementById('readCommentModal'));
+        readModal.show();
+    });
+});
+</script>
+
     </script>
 </body>
 </html>

@@ -283,6 +283,19 @@ $("#addPersonForm").on("submit", function (e) {
         }
     });
 });
+// Edit Person
+$("#editPersonForm").on("submit", function (e) {
+    e.preventDefault();
+    let formData = $(this).serialize() + '&action=edit';
+    $.post("persons_list.php", formData, function (response) {
+        if (response.trim() === "success") {
+            $("#editPersonModal").modal("hide");
+            location.reload(); // Refresh table with new values
+        } else {
+            alert("Failed to update person.");
+        }
+    });
+});
 
     </script>
 </body>
